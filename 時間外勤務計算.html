@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>時間外勤務計算</title>
+<style>
+  :root {
+    --bg: #f7f6f3;
+    --panel: #ffffff;
+    --ink: #1f2630;
+    --ink-soft: #5b6573;
+    --rule: #d8dce1;
+    --accent: #2c5f7c;
+    --accent-soft: #e7eef2;
+    --warn: #b5651d;
+    --warn-soft: #fbf0e6;
+    --mono: "SF Mono", "Roboto Mono", "Consolas", monospace;
+    --sans: "Hiragino Sans", "Noto Sans JP", "Yu Gothic", sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.6;
+    padding: 24px 16px 64px;
+  }
+
+  .wrap {
+    max-width: 720px;
+    margin: 0 auto;
+  }
+
+  header {
+    margin-bottom: 24px;
+  }
+
+  h1 {
+    font-size: 1.3rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    margin: 0 0 4px;
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+
+  h1 .tag {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: var(--accent);
+    background: var(--accent-soft);
+    padding: 2px 8px;
+    border-radius: 3px;
+    letter-spacing: 0.08em;
+  }
+
+  .sub {
+    font-size: 0.85rem;
+    color: var(--ink-soft);
+  }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    padding: 18px;
+    margin-bottom: 16px;
+  }
+
+  .panel h2 {
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    margin: 0 0 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .panel h2::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--rule);
+  }
+
+  textarea {
+    width: 100%;
+    min-height: 220px;
+    font-family: var(--mono);
+    font-size: 0.82rem;
+    line-height: 1.5;
+    padding: 12px;
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    background: #fcfcfb;
+    color: var(--ink);
+    resize: vertical;
+  }
+
+  textarea:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+
+  .row {
+    display: flex;
+    gap: 10px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+  }
+
+  button {
+    font-family: var(--sans);
+    font-size: 0.88rem;
+    font-weight: 700;
+    padding: 10px 20px;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: filter 0.15s ease;
+  }
+
+  button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+  }
+  .btn-primary:hover { filter: brightness(1.08); }
+
+  .btn-ghost {
+    background: transparent;
+    border: 1px solid var(--rule);
+    color: var(--ink-soft);
+  }
+  .btn-ghost:hover { background: var(--accent-soft); color: var(--accent); }
+
+  .year-field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.82rem;
+    color: var(--ink-soft);
+    margin-bottom: 12px;
+  }
+
+  .year-field input {
+    width: 80px;
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    padding: 6px 8px;
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    background: #fcfcfb;
+    color: var(--ink);
+  }
+
+  /* Results */
+  .result-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .day-group {
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .day-group.alt {
+    background: var(--accent-soft);
+  }
+  .day-group.alt .day-header {
+    background: #dde8ed;
+  }
+  .day-group:not(.alt) {
+    background: #fcfcfb;
+  }
+  .day-group:not(.alt) .day-header {
+    background: #eef0ed;
+  }
+
+  .day-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 7px 10px;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .day-header .date {
+    font-family: var(--mono);
+    font-weight: 700;
+    color: var(--accent);
+    font-size: 0.88rem;
+    letter-spacing: 0.02em;
+  }
+
+  .day-header .day-sub {
+    font-family: var(--mono);
+    font-weight: 700;
+    font-size: 0.88rem;
+    color: var(--ink);
+  }
+
+  .day-header .day-sub .unit {
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: var(--ink-soft);
+    margin-left: 4px;
+  }
+
+  .result-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+    align-items: baseline;
+    padding: 6px 10px;
+    font-size: 0.88rem;
+  }
+
+  .result-row + .result-row {
+    border-top: 1px dashed var(--rule);
+  }
+
+  .result-row .range {
+    font-family: var(--mono);
+    font-size: 0.85rem;
+  }
+
+  .result-row .note {
+    display: inline-block;
+    margin-left: 8px;
+    font-size: 0.72rem;
+    color: var(--warn);
+    background: var(--warn-soft);
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-family: var(--sans);
+  }
+
+  .result-row .minutes {
+    font-family: var(--mono);
+    font-weight: 700;
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .empty-msg {
+    color: var(--ink-soft);
+    font-size: 0.85rem;
+    padding: 8px 0;
+  }
+
+  .warning-row {
+    font-size: 0.82rem;
+    color: var(--warn);
+    background: var(--warn-soft);
+    border: 1px solid #f0d9c2;
+    border-radius: 5px;
+    padding: 8px 10px;
+    margin-bottom: 6px;
+    font-family: var(--sans);
+  }
+
+  .total-bar {
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid var(--rule);
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+
+  .total-bar .label {
+    font-size: 0.78rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    font-weight: 700;
+  }
+
+  .total-bar .value {
+    font-family: var(--mono);
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--accent);
+  }
+
+  .total-bar .value .unit {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--ink-soft);
+    margin-left: 6px;
+  }
+
+  .help {
+    font-size: 0.78rem;
+    color: var(--ink-soft);
+  }
+
+  .help summary {
+    cursor: pointer;
+    font-weight: 700;
+    color: var(--accent);
+    margin-bottom: 8px;
+  }
+
+  .help pre {
+    background: #fcfcfb;
+    border: 1px solid var(--rule);
+    border-radius: 5px;
+    padding: 10px;
+    font-family: var(--mono);
+    font-size: 0.74rem;
+    overflow-x: auto;
+    white-space: pre;
+    color: var(--ink-soft);
+  }
+
+  .help ul {
+    margin: 8px 0;
+    padding-left: 20px;
+  }
+
+  .help li {
+    margin-bottom: 4px;
+  }
+
+  footer {
+    text-align: center;
+    font-size: 0.72rem;
+    color: var(--ink-soft);
+    margin-top: 24px;
+  }
+
+  @media (max-width: 480px) {
+    .day-header {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 2px;
+    }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>時間外勤務計算 <span class="tag">LOCAL / OFFLINE</span></h1>
+    <div class="sub">勤怠サイトの表示をそのまま貼り付けてください</div>
+  </header>
+
+  <div class="panel">
+    <h2>入力</h2>
+    <div class="year-field">
+      年（4桁）：
+      <input type="number" id="yearInput" placeholder="2026" min="2000" max="2100">
+    </div>
+    <textarea id="inputText" placeholder="例）
+06/02
+(火)
+平日
+
+予 08:30 - 17:15
+実 08:05 - 18:24
+実働 9:19 残業 1:34
+06/03
+(水)
+..."></textarea>
+    <div class="row">
+      <button class="btn-primary" id="calcBtn">計算する</button>
+      <button class="btn-ghost" id="clearBtn">クリア</button>
+    </div>
+  </div>
+
+  <div class="panel" id="resultPanel" style="display:none;">
+    <h2>結果</h2>
+    <div id="warnings"></div>
+    <div class="result-list" id="resultList"></div>
+    <div class="total-bar">
+      <span class="label">合計時間外</span>
+      <span class="value" id="totalValue">0分<span class="unit">(0時間0分)</span></span>
+    </div>
+  </div>
+
+  <div class="panel help">
+    <details>
+      <summary>計算ルールについて</summary>
+      <ul>
+        <li>平日の定時は <strong>08:30〜17:15</strong>。この時間帯の外側を時間外として抽出します。</li>
+        <li><strong>土曜・日曜・祝日</strong>は、出退勤の全時間を時間外とします（定時帯であっても対象外にはしません）。</li>
+        <li><strong>当直</strong>（24時間を超えて翌日に退勤する勤務）の場合、当日の08:30〜17:15は通常勤務として時間外対象外、当直開始〜翌09:00は時間外対象外、<strong>翌09:00以降は時間外</strong>として計算します。</li>
+        <li>休憩時間は計算に加味しません。</li>
+        <li>日本の祝日（振替休日含む）は自動判定します。</li>
+        <li>年が未入力の場合は、現在の年を仮定します。</li>
+      </ul>
+      <p>貼り付け例：</p>
+      <pre>06/02
+(火)
+平日
+
+予 08:30 - 17:15
+実 08:05 - 18:24
+実働 9:19 残業 1:34
+06/06
+(土)
+週休日
+
+
+実 08:27 - 09:08
+実働 0:41 残業 0:41
+06/08
+(月)
+平日
+
+予 08:30 - 17:15
+実 08:09 - 39:36 (翌 15:36)
+実働 15:12 残業 7:27</pre>
+    </details>
+  </div>
+
+  <footer>すべての計算はこの端末内で行われます。データは送信・保存されません。</footer>
+</div>
+
+<script>
+/* ===================== 祝日判定（日本） ===================== */
+// 春分・秋分は近似式で算出。対象範囲は概ね2000-2099年で十分な精度。
+function vernalEquinox(year) {
+  return Math.floor(20.8431 + 0.242194 * (year - 1980) - Math.floor((year - 1980) / 4));
+}
+function autumnalEquinox(year) {
+  return Math.floor(23.2488 + 0.242194 * (year - 1980) - Math.floor((year - 1980) / 4));
+}
+// 第n月曜日を求める (month: 1-12, n: 1-5, dow=1 月曜)
+function nthWeekday(year, month, n, dow) {
+  const d = new Date(year, month - 1, 1);
+  let day = d.getDay();
+  let offset = (dow - day + 7) % 7;
+  let date = 1 + offset + (n - 1) * 7;
+  return date;
+}
+function getHolidays(year) {
+  const holidays = {}; // "MM-DD" -> name
+  const add = (m, d, name) => { holidays[`${pad2(m)}-${pad2(d)}`] = name; };
+
+  add(1, 1, "元日");
+  add(1, nthWeekday(year, 1, 2, 1), "成人の日");
+  add(2, 11, "建国記念の日");
+  if (year >= 2020) add(2, 23, "天皇誕生日");
+  add(3, vernalEquinox(year), "春分の日");
+  add(4, 29, "昭和の日");
+  add(5, 3, "憲法記念日");
+  add(5, 4, "みどりの日");
+  add(5, 5, "こどもの日");
+  add(7, nthWeekday(year, 7, 3, 1), "海の日");
+  add(8, 11, "山の日");
+  add(9, nthWeekday(year, 9, 3, 1), "敬老の日");
+  add(9, autumnalEquinox(year), "秋分の日");
+  add(10, nthWeekday(year, 10, 2, 1), "スポーツの日");
+  add(11, 3, "文化の日");
+  add(11, 23, "勤労感謝の日");
+
+  // 振替休日: 祝日が日曜の場合、次の平日（祝日でない日）を振替休日とする
+  const entries = Object.entries(holidays).map(([k, v]) => {
+    const [m, d] = k.split("-").map(Number);
+    return { m, d, name: v, date: new Date(year, m - 1, d) };
+  });
+  const additions = {};
+  entries.forEach(e => {
+    if (e.date.getDay() === 0) {
+      let next = new Date(e.date);
+      do {
+        next.setDate(next.getDate() + 1);
+      } while (holidays[`${pad2(next.getMonth()+1)}-${pad2(next.getDate())}`] || additions[`${pad2(next.getMonth()+1)}-${pad2(next.getDate())}`]);
+      additions[`${pad2(next.getMonth()+1)}-${pad2(next.getDate())}`] = "振替休日";
+    }
+  });
+  Object.assign(holidays, additions);
+
+  // 国民の休日（前後が祝日に挟まれた平日）: 簡易対応（5/4はみどりの日として既に登録済）
+  return holidays;
+}
+
+function pad2(n) { return String(n).padStart(2, "0"); }
+
+function isHoliday(year, month, day) {
+  const holidays = getHolidays(year);
+  return holidays[`${pad2(month)}-${pad2(day)}`] || null;
+}
+
+function isWeekendOrHoliday(year, month, day) {
+  const date = new Date(year, month - 1, day);
+  const dow = date.getDay(); // 0=Sun, 6=Sat
+  const holidayName = isHoliday(year, month, day);
+  return { isWeekend: dow === 0 || dow === 6, isSat: dow === 6, isSun: dow === 0, holidayName };
+}
+
+/* ===================== 入力パース ===================== */
+
+// 1分単位の時刻文字列 "HH:MM" -> 分(int)
+function timeToMinutes(str) {
+  const m = str.trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return null;
+  return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+}
+
+// ===== 形式1: iPhone（モバイル）形式 =====
+// 日付行が "MM/DD" 単独で、その後に「実 HH:MM - HH:MM (翌 HH:MM)」のような行が続く形式
+function parseInputMobile(rawText) {
+  const lines = rawText.split("\n").map(l => l.trim());
+  const records = [];
+
+  const dateLineRegex = /^(\d{1,2})\/(\d{1,2})$/;
+  let blocks = [];
+  let current = null;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const dm = line.match(dateLineRegex);
+    if (dm) {
+      if (current) blocks.push(current);
+      current = { month: parseInt(dm[1], 10), day: parseInt(dm[2], 10), lines: [] };
+    } else if (current) {
+      current.lines.push(line);
+    }
+  }
+  if (current) blocks.push(current);
+
+  for (const block of blocks) {
+    const rec = { month: block.month, day: block.day, actualStart: null, actualEnd: null, isOvernight: false };
+
+    // 「実 HH:MM - HH:MM」または「実 HH:MM - HH:MM (翌 HH:MM)」を探す
+    const joined = block.lines.join("\n");
+    const actualMatch = joined.match(/実\s*(\d{1,2}:\d{2})\s*-\s*(\d{1,2}):(\d{2})\s*(?:\(翌\s*(\d{1,2}:\d{2})\))?/);
+
+    if (actualMatch) {
+      rec.actualStart = timeToMinutes(actualMatch[1]);
+      const endHourRaw = parseInt(actualMatch[2], 10);
+      const endMin = parseInt(actualMatch[3], 10);
+
+      if (actualMatch[4]) {
+        // (翌 HH:MM) がある場合 -> 当直（24h超え）として翌日の退勤時刻を使う
+        rec.isOvernight = true;
+        rec.actualEnd = timeToMinutes(actualMatch[4]); // 翌日基準の分(0-1440)
+      } else if (endHourRaw >= 24) {
+        // "39:36" のような24時超え表記だが (翌 ...) がない場合への対応
+        rec.isOvernight = true;
+        rec.actualEnd = (endHourRaw - 24) * 60 + endMin;
+      } else {
+        rec.actualEnd = endHourRaw * 60 + endMin;
+      }
+    }
+
+    records.push(rec);
+  }
+
+  return records;
+}
+
+// ===== 形式2: PC（ブラウザ版勤怠サイト）形式 =====
+// 日付行が "MM/DD(曜)" で、続けて "平日"/"週休日" 等のラベル、
+// その後に時刻トークン（HH:MM や "(翌 HH:MM)"）が複数行で並び、
+// 最後に "N 時間 N 分" の集計行が続く形式
+function parseInputPC(rawText) {
+  const lines = rawText.split("\n").map(l => l.trim()).filter(l => l !== "");
+  const dateLineRegex = /^(\d{1,2})\/(\d{1,2})\(([月火水木金土日])\)$/;
+  const timeRe = /^(\d{1,2}):(\d{2})$/;
+  const nextDayRe = /^\(翌\s*(\d{1,2}):(\d{2})\)$/;
+
+  let blocks = [];
+  let current = null;
+  for (const line of lines) {
+    const dm = line.match(dateLineRegex);
+    if (dm) {
+      if (current) blocks.push(current);
+      current = { month: parseInt(dm[1], 10), day: parseInt(dm[2], 10), lines: [] };
+    } else if (current) {
+      current.lines.push(line);
+    }
+  }
+  if (current) blocks.push(current);
+
+  const records = [];
+  for (const b of blocks) {
+    const statusLine = b.lines[0]; // 平日 / 週休日 など
+    const isWeekdayLabel = statusLine === "平日";
+
+    // 集計行（"N 時間 N 分"）が出るまでの時刻トークンを抜き出す
+    const tokens = [];
+    for (const line of b.lines.slice(1)) {
+      if (timeRe.test(line)) {
+        tokens.push({ type: "time", value: line });
+      } else if (nextDayRe.test(line)) {
+        tokens.push({ type: "nextday", value: line });
+      } else if (/時間.*分/.test(line)) {
+        break;
+      }
+      // 「年次有給休暇」等のラベル行は無視
+    }
+
+    const rec = { month: b.month, day: b.day, actualStart: null, actualEnd: null, isOvernight: false };
+
+    if (tokens.length === 0) {
+      // 出退勤データなし
+    } else if (tokens.length === 2 && tokens[0].type === "time" && tokens[1].type === "time") {
+      if (isWeekdayLabel) {
+        // 平日で2トークン -> 予定開始・予定終了のみ（実績の出退勤なし）
+      } else {
+        // 週休日で2トークン -> 実績開始・実績終了
+        rec.actualStart = timeToMinutes(tokens[0].value);
+        rec.actualEnd = timeToMinutes(tokens[1].value);
+      }
+    } else if (tokens.length === 3 && tokens[2].type === "nextday") {
+      // 週休日 当直: 実績開始, 実績終了(24h+), (翌 HH:MM)
+      rec.actualStart = timeToMinutes(tokens[0].value);
+      const m2 = tokens[2].value.match(nextDayRe);
+      rec.actualEnd = timeToMinutes(`${m2[1]}:${m2[2]}`);
+      rec.isOvernight = true;
+    } else if (tokens.length === 4 && tokens.every(t => t.type === "time")) {
+      // 平日通常: 予定開始, 実績開始, 予定終了, 実績終了
+      rec.actualStart = timeToMinutes(tokens[1].value);
+      rec.actualEnd = timeToMinutes(tokens[3].value);
+    } else if (tokens.length === 5 && tokens[4].type === "nextday") {
+      // 平日 当直: 予定開始, 実績開始, 予定終了, 実績終了(24h+), (翌 HH:MM)
+      rec.actualStart = timeToMinutes(tokens[1].value);
+      const m2 = tokens[4].value.match(nextDayRe);
+      rec.actualEnd = timeToMinutes(`${m2[1]}:${m2[2]}`);
+      rec.isOvernight = true;
+    }
+
+    records.push(rec);
+  }
+  return records;
+}
+
+// 入力テキストの形式を自動判別して解析する
+function parseInput(rawText, year) {
+  // PC形式の特徴: "MM/DD(曜)" 形式の日付行が存在する
+  const pcDateRegex = /^\d{1,2}\/\d{1,2}\([月火水木金土日]\)$/m;
+  const lines = rawText.split("\n").map(l => l.trim());
+  const hasPCDate = lines.some(l => pcDateRegex.test(l));
+
+  if (hasPCDate) {
+    return parseInputPC(rawText);
+  }
+  return parseInputMobile(rawText);
+}
+
+/* ===================== 時間外計算 ===================== */
+
+const WORK_START = 8 * 60 + 30;  // 08:30
+const WORK_END = 17 * 60 + 15;   // 17:15
+const NEXT_DAY_CUTOFF = 9 * 60;  // 09:00
+
+function minutesToHHMM(mins) {
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return `${pad2(h)}:${pad2(m)}`;
+}
+
+// 1日分のレコードから時間外ブロックを計算する
+// 戻り値: { blocks: [{startLabel, endLabel, minutes, note, nextDay:boolean}], warning: string|null }
+function calcOvertimeForRecord(rec, year, dayInfo, nextDayInfo) {
+  const result = { blocks: [], warning: null };
+
+  if (rec.actualStart === null || rec.actualEnd === null) {
+    return result;
+  }
+
+  const start = rec.actualStart;
+  const end = rec.actualEnd; // 当直の場合は翌日の分(0-1440)
+
+  const isHolidayLike = dayInfo.isWeekend || dayInfo.holidayName;
+
+  if (rec.isOvernight) {
+    // ===== 当直パターン =====
+    // 当直当日: 08:30-17:15は通常勤務(対象外)。出勤が定時より早い場合、その分は当該日のルールに従う。
+    // 当直開始(=出勤〜24:00 ＋ 翌日0:00〜翌09:00)は時間外対象外。
+    // 翌日09:00以降〜終了時刻 は時間外。
+
+    // (1) 当直当日の早出分（出勤がWORK_STARTより早い場合）
+    if (start < WORK_START) {
+      if (isHolidayLike) {
+        // 休日出勤の場合、定時開始前も全て時間外
+        result.blocks.push({
+          startLabel: minutesToHHMM(start),
+          endLabel: minutesToHHMM(WORK_START),
+          minutes: WORK_START - start,
+          note: dayInfo.holidayName ? `${dayInfo.holidayName}・当直前` : (dayInfo.isSat ? "土曜出勤・当直前" : "日曜出勤・当直前"),
+          nextDay: false
+        });
+      } else {
+        result.blocks.push({
+          startLabel: minutesToHHMM(start),
+          endLabel: minutesToHHMM(WORK_START),
+          minutes: WORK_START - start,
+          note: null,
+          nextDay: false
+        });
+      }
+    }
+
+    // (2) 翌日09:00以降〜終了時刻（当直明け）
+    if (end > NEXT_DAY_CUTOFF) {
+      result.blocks.push({
+        startLabel: minutesToHHMM(NEXT_DAY_CUTOFF),
+        endLabel: minutesToHHMM(end),
+        minutes: end - NEXT_DAY_CUTOFF,
+        note: "当直明け",
+        nextDay: true
+      });
+    } else if (end < NEXT_DAY_CUTOFF && end > 0) {
+      // 09:00より前に退勤した場合は時間外なし（情報として警告）
+      result.warning = `${rec.month}月${rec.day}日: 当直明けの退勤(${minutesToHHMM(end)})が09:00より前のため、翌日分の時間外は0分としています。`;
+    }
+
+  } else if (isHolidayLike) {
+    // ===== 土日祝パターン：全時間を時間外 =====
+    if (end > start) {
+      const note = dayInfo.holidayName ? dayInfo.holidayName :
+                    (dayInfo.isSat ? "土曜出勤" : "日曜出勤");
+      result.blocks.push({
+        startLabel: minutesToHHMM(start),
+        endLabel: minutesToHHMM(end),
+        minutes: end - start,
+        note: note,
+        nextDay: false
+      });
+    } else if (end < start) {
+      result.warning = `${rec.month}月${rec.day}日: 退勤時刻が出勤時刻より前になっています。入力を確認してください。`;
+    }
+
+  } else {
+    // ===== 平日パターン =====
+    if (end <= start) {
+      result.warning = `${rec.month}月${rec.day}日: 退勤時刻が出勤時刻より前になっています。入力を確認してください。`;
+      return result;
+    }
+
+    // 早出: start 〜 WORK_START
+    if (start < WORK_START) {
+      const blockEnd = Math.min(end, WORK_START);
+      if (blockEnd > start) {
+        result.blocks.push({
+          startLabel: minutesToHHMM(start),
+          endLabel: minutesToHHMM(blockEnd),
+          minutes: blockEnd - start,
+          note: null,
+          nextDay: false
+        });
+      }
+    }
+
+    // 残業: WORK_END 〜 end
+    if (end > WORK_END) {
+      const blockStart = Math.max(start, WORK_END);
+      if (end > blockStart) {
+        result.blocks.push({
+          startLabel: minutesToHHMM(blockStart),
+          endLabel: minutesToHHMM(end),
+          minutes: end - blockStart,
+          note: null,
+          nextDay: false
+        });
+      }
+    }
+  }
+
+  return result;
+}
+
+/* ===================== メイン処理 ===================== */
+
+function runCalculation() {
+  const rawText = document.getElementById("inputText").value;
+  const yearInputVal = document.getElementById("yearInput").value;
+  const year = yearInputVal ? parseInt(yearInputVal, 10) : new Date().getFullYear();
+
+  const records = parseInput(rawText, year);
+
+  const resultPanel = document.getElementById("resultPanel");
+  const resultList = document.getElementById("resultList");
+  const warningsDiv = document.getElementById("warnings");
+  const totalValue = document.getElementById("totalValue");
+
+  resultList.innerHTML = "";
+  warningsDiv.innerHTML = "";
+
+  if (records.length === 0) {
+    resultPanel.style.display = "block";
+    resultList.innerHTML = `<div class="empty-msg">日付（MM/DD形式）を含む勤怠データが見つかりませんでした。入力形式をご確認ください。</div>`;
+    totalValue.innerHTML = `0分<span class="unit">(0時間0分)</span>`;
+    return;
+  }
+
+  let totalMinutes = 0;
+  let warningsHtml = "";
+
+  // すべての時間外ブロックを (年月日キー, 表示用月日, ブロック内容) として収集する
+  const allBlocks = []; // { sortKey, label, blocks: [...] }
+  const dayMap = new Map(); // sortKey -> { label, blocks: [] }
+
+  records.forEach((rec) => {
+    const dayInfo = isWeekendOrHoliday(year, rec.month, rec.day);
+
+    if (rec.actualStart === null || rec.actualEnd === null) {
+      // 実績の出退勤データがない日（休み・記録なし）はスキップ
+      return;
+    }
+
+    const { blocks, warning } = calcOvertimeForRecord(rec, year, dayInfo, null);
+
+    if (warning) {
+      warningsHtml += `<div class="warning-row">⚠️ ${warning}</div>`;
+    }
+
+    blocks.forEach(b => {
+      if (b.minutes <= 0) return;
+      totalMinutes += b.minutes;
+
+      // 当直明けブロックは翌日の日付で表示する
+      let labelMonth = rec.month, labelDay = rec.day;
+      if (b.nextDay) {
+        const nd = new Date(year, rec.month - 1, rec.day + 1);
+        labelMonth = nd.getMonth() + 1;
+        labelDay = nd.getDate();
+      }
+      const sortKey = labelMonth * 100 + labelDay;
+      const wd = new Date(year, labelMonth - 1, labelDay).getDay();
+      const wdLabel = ["日", "月", "火", "水", "木", "金", "土"][wd];
+      const label = `${labelMonth}月${labelDay}日(${wdLabel})`;
+
+      if (!dayMap.has(sortKey)) {
+        dayMap.set(sortKey, { label, blocks: [] });
+      }
+      dayMap.get(sortKey).blocks.push(b);
+    });
+  });
+
+  resultPanel.style.display = "block";
+
+  if (warningsHtml) {
+    warningsDiv.innerHTML = warningsHtml;
+  }
+
+  if (dayMap.size === 0) {
+    resultList.innerHTML = `<div class="empty-msg">時間外勤務はありませんでした。</div>`;
+  } else {
+    const sortedKeys = Array.from(dayMap.keys()).sort((a, b) => a - b);
+    let groupsHtml = "";
+    sortedKeys.forEach((key, idx) => {
+      const { label, blocks } = dayMap.get(key);
+      const dayTotal = blocks.reduce((sum, b) => sum + b.minutes, 0);
+      const h = Math.floor(dayTotal / 60);
+      const m = dayTotal % 60;
+      const altClass = idx % 2 === 1 ? " alt" : "";
+
+      let rowsHtml = "";
+      blocks.forEach(b => {
+        const noteHtml = b.note ? `<span class="note">※${b.note}</span>` : "";
+        rowsHtml += `
+          <div class="result-row">
+            <span class="range">${b.startLabel}–${b.endLabel}${noteHtml}</span>
+            <span class="minutes">${b.minutes}分</span>
+          </div>`;
+      });
+
+      groupsHtml += `
+        <div class="day-group${altClass}">
+          <div class="day-header">
+            <span class="date">${label}</span>
+            <span class="day-sub">${dayTotal}分<span class="unit">(${h}h${m}m)</span></span>
+          </div>
+          ${rowsHtml}
+        </div>`;
+    });
+    resultList.innerHTML = groupsHtml;
+  }
+
+  const hours = Math.floor(totalMinutes / 60);
+  const mins = totalMinutes % 60;
+  totalValue.innerHTML = `${totalMinutes}分<span class="unit">(${hours}時間${mins}分)</span>`;
+}
+
+document.getElementById("calcBtn").addEventListener("click", runCalculation);
+document.getElementById("clearBtn").addEventListener("click", () => {
+  document.getElementById("inputText").value = "";
+  document.getElementById("resultPanel").style.display = "none";
+});
+
+// Enter+Ctrl/Cmd で計算実行
+document.getElementById("inputText").addEventListener("keydown", (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+    runCalculation();
+  }
+});
+</script>
+</body>
+</html>
